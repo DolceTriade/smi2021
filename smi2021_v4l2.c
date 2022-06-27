@@ -187,9 +187,8 @@ static const struct v4l2_ioctl_ops smi2021_ioctl_ops = {
  * Videobuf2 operations
  */
 static int queue_setup(struct vb2_queue *vq,
-				const struct v4l2_format *v4l2_fmt,
 				unsigned int *nbuffers, unsigned int *nplanes,
-				unsigned int sizes[], void *alloc_ctxs[])
+				unsigned int sizes[], struct device *devs[])
 {
 	struct smi2021 *smi2021 = vb2_get_drv_priv(vq);
 	*nbuffers = clamp_t(unsigned int, *nbuffers, 4, 16);
@@ -209,7 +208,8 @@ static void buffer_queue(struct vb2_buffer *vb)
 {
 	unsigned long flags;
 	struct smi2021 *smi2021 = vb2_get_drv_priv(vb->vb2_queue);
-	struct smi2021_buf *buf = container_of(vb, struct smi2021_buf, vb);
+	struct vb2_v4l2_buffer *v4l2_buf = container_of(vb, struct vb2_v4l2_buffer, vb2_buf);
+	struct smi2021_buf *buf = container_of(v4l2_buf, struct smi2021_buf, vb);
 
 	spin_lock_irqsave(&smi2021->buf_lock, flags);
 	if (!smi2021->udev) {
@@ -217,7 +217,7 @@ static void buffer_queue(struct vb2_buffer *vb)
 		 * If the device is disconnected return the buffer to userspace
 		 * directly. The next QBUF call will fail with -ENODEV.
 		 */
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 	} else {
 		buf->mem = vb2_plane_vaddr(vb, 0);
 		buf->length = vb2_plane_size(vb, 0);
@@ -231,7 +231,7 @@ static void buffer_queue(struct vb2_buffer *vb)
 		 * we return the buffer back to userspace
 		 */
 		if (buf->length < SMI2021_BYTES_PER_LINE * smi2021->cur_height)
-			vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+			vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		else
 			list_add_tail(&buf->list, &smi2021->avail_bufs);
 	}
@@ -284,16 +284,16 @@ void smi2021_clear_queue(struct smi2021 *smi2021)
 		buf = list_first_entry(&smi2021->avail_bufs,
 				struct smi2021_buf, list);
 		list_del(&buf->list);
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		dev_info(smi2021->dev, "buffer [%p/%d] aborted\n",
-				buf, buf->vb.v4l2_buf.index);
+				buf, buf->vb.vb2_buf.index);
 	}
 	/* It's important to clear current buffer */
 	if (smi2021->cur_buf) {
 		buf = smi2021->cur_buf;
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		dev_info(smi2021->dev, "buffer [%p/%d] aborted\n",
-				buf, buf->vb.v4l2_buf.index);
+				buf, buf->vb.vb2_buf.index);
 	}
 	smi2021->cur_buf = NULL;
 	spin_unlock_irqrestore(&smi2021->buf_lock, flags);
@@ -337,12 +337,14 @@ int smi2021_video_register(struct smi2021 *smi2021)
 	 */
 	smi2021->vdev.lock = &smi2021->v4l2_lock;
 	smi2021->vdev.queue->lock = &smi2021->vb_queue_lock;
+	smi2021->vdev.device_caps =
+		V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING | V4L2_CAP_READWRITE;
 
 	/* This will be used to set video_device parent */
 	smi2021->vdev.v4l2_dev = &smi2021->v4l2_dev;
 
 	video_set_drvdata(&smi2021->vdev, smi2021);
-	rc = video_register_device(&smi2021->vdev, VFL_TYPE_GRABBER, -1);
+	rc = video_register_device(&smi2021->vdev, VFL_TYPE_VIDEO, -1);
 	if (rc < 0) {
 		dev_err(smi2021->dev, "video_register_device failed (%d)\n",
 									rc);

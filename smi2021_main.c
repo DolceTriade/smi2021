@@ -320,16 +320,15 @@ static void smi2021_buf_done(struct smi2021 *smi2021)
 {
 	struct smi2021_buf *buf = smi2021->cur_buf;
 
-	v4l2_get_timestamp(&buf->vb.v4l2_buf.timestamp);
-	buf->vb.v4l2_buf.sequence = smi2021->sequence++;
-	buf->vb.v4l2_buf.field = V4L2_FIELD_INTERLACED;
+	buf->vb.sequence = smi2021->sequence++;
+	buf->vb.field = V4L2_FIELD_INTERLACED;
 
 	if (buf->pos < (SMI2021_BYTES_PER_LINE * smi2021->cur_height)) {
-		vb2_set_plane_payload(&buf->vb, 0, 0);
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		vb2_set_plane_payload(&buf->vb.vb2_buf, 0, 0);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 	} else {
-		vb2_set_plane_payload(&buf->vb, 0, buf->pos);
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_DONE);
+		vb2_set_plane_payload(&buf->vb.vb2_buf, 0, buf->pos);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 	}
 
 	smi2021->cur_buf = NULL;
@@ -434,8 +433,8 @@ static void copy_video_block(struct smi2021 *smi2021, u8 *p, int size)
 	start_corr = 0;
 	len_copy = size;
 
-if (smi2021->skip_frame)
-	return;
+	if (smi2021->skip_frame)
+		return;
 
 	if (!buf) {
 		return;
@@ -560,7 +559,7 @@ static void parse_video(struct smi2021 *smi2021, u8 *p, int size)
 		}
 	}
 	if ( start_copy < size ) {
-		if ( smi2021->sync_state == SYNCZ1 ) 
+		if ( smi2021->sync_state == SYNCZ1 )
 			correct1 = 1;
 		else if ( smi2021->sync_state == SYNCZ2 )
 			correct1 = 2;
@@ -896,7 +895,7 @@ int smi2021_stop(struct smi2021 *smi2021)
 	smi2021_cancel_isoc(smi2021);
 
 	smi2021_stop_hw(smi2021);
-	
+
 	smi2021_clear_queue(smi2021);
 
 	dev_notice(smi2021->dev, "streaming stopped\n");
