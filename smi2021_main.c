@@ -793,6 +793,9 @@ int smi2021_start(struct smi2021 *smi2021)
 	u8 reg;
 	smi2021->sync_state = HSYNC;
 
+
+	dev_info(smi2021->dev, "smi_2021_start\n");
+
 	/* Check device presence */
 	if (!smi2021->udev)
 		return -ENODEV;
@@ -842,7 +845,7 @@ int smi2021_start(struct smi2021 *smi2021)
 		if (rc < 0)
 			goto err_stop_hw;
 	}
-
+	dev_info(smi2021->dev, "submitting urbs %d\n", smi2021->isoc_ctl.num_bufs);
 	for (i = 0; i < smi2021->isoc_ctl.num_bufs; i++) {
 		rc = usb_submit_urb(smi2021->isoc_ctl.urb[i], GFP_KERNEL);
 		if (rc) {
@@ -854,9 +857,8 @@ int smi2021_start(struct smi2021 *smi2021)
 
 	/* I have no idea about what this register does with this value. */
 	smi2021_set_reg(smi2021, 0, 0x1800, 0x0d);
-
 	mutex_unlock(&smi2021->v4l2_lock);
-
+	dev_info(smi2021->dev, "smi2021_start done\n");
 	return 0;
 
 err_uninit:

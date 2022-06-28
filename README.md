@@ -1,5 +1,7 @@
 # smi2021
 
+## WARNING: This code currently deadlocks the machine. Currently under investigation.
+
 The purpose of this repository is to merge and clean up several of the forks available. A merge into the mainline kernel seems unlikely at the moment, as we don't have licensing on the binary blob that's needed to use the driver.
 
 ## Installing
